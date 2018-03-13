@@ -29,9 +29,9 @@ class WAMPServer {
 	 */
 	upgradeToWAMP(socket) {
 		// register RPC endpoints
-		socket.on('rpc-request', (request) => {
+		socket.on('rpc-request', (request, responder) => {
 			if (schemas.isValid(request, schemas.RPCRequestSchema)) {
-				this.processWAMPRequest(request, socket);
+				this.processWAMPRequest(request, responder);
 			}
 		});
 		// register Event endpoints
@@ -46,35 +46,23 @@ class WAMPServer {
 
 	/**
 	 * @param {RPCRequestSchema} request
-	 * @param {SocketCluster.Socket} socket
+	 * @param {SocketCluster.Response} responder
 	 * @returns {undefined}
 	 */
-	processWAMPRequest(request, socket) {
+	processWAMPRequest(request, responder) {
 		const isValidWAMPEndpoint = (endpointType, procedure) =>
 			this.endpoints[endpointType][procedure] &&
 			typeof this.endpoints[endpointType][procedure] === 'function';
 
 		if (isValidWAMPEndpoint('rpc', request.procedure)) {
-			return this.endpoints.rpc[request.procedure](request.data,
-				this.reply.bind(this, socket, request));
+			return this.endpoints.rpc[request.procedure](request.data, responder);
 		} else if (isValidWAMPEndpoint('event', request.procedure)) {
 			return this.endpoints.event[request.procedure](request.data);
 		}
-		return this.reply(socket, request,
-			`Procedure ${request.procedure} not registered on WAMPServer. 
-			Available commands: ${this.endpoints}`, null);
-	}
-
-	/**
-	 * @param {SocketCluster.Socket} socket
-	 * @param {RPCRequestSchema} request
-	 * @param {*} error
-	 * @param {*} data
-	 * @returns {undefined}
-	 */
-	/* eslint class-methods-use-this: 0 */
-	reply(socket, request, error, data) {
-		socket.emit('rpc-response', WAMPServer.createResponsePayload(request, error, data));
+		return responder(
+			`Procedure ${request.procedure} not registered on WAMPServer.
+			Available commands: ${this.endpoints}`
+		);
 	}
 
 	/**
