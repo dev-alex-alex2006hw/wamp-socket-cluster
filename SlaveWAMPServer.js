@@ -17,7 +17,9 @@ class SlaveWAMPServer extends WAMPServer {
 	constructor(
 		worker,
 		internalRequestsTimeoutMs = 10e3,
-		configuredCb = () => {}) {
+		configuredCb = () => {},
+		onRPC = null,
+		onEvent = null) {
 		super();
 		this.worker = worker;
 		this.sockets = worker.scServer.clients;
@@ -25,8 +27,14 @@ class SlaveWAMPServer extends WAMPServer {
 		this.endpoints.slaveRpc = {};
 		this.config = {};
 		this.internalRequestsTimeoutMs = internalRequestsTimeoutMs;
-		this.worker.on('masterMessage', (response) => {
-			if (schemas.isValid(response, schemas.RPCResponseSchema)) {
+		this.worker.on('masterMessage', (response, timeout, cb) => {
+			if (onRPC && response.rpc) {
+				onRPC(response, cb);
+			}
+			else if (onEvent && response.emit) {
+				onEvent(response);
+			}
+			else if (schemas.isValid(response, schemas.RPCResponseSchema)) {
 				const socket = this.sockets[response.socketId];
 				if (socket) {
 					delete response.socketId;
@@ -34,7 +42,7 @@ class SlaveWAMPServer extends WAMPServer {
 					response.type = schemas.RPCRequestSchema.id;
 					this.reply(socket, response, response.error, response.data);
 				} else {
-					throw new Error('Socket that requested RPC call not found anymore');
+					console.log('Socket that requested RPC call not found anymore');
 				}
 			} else if (schemas.isValid(response, schemas.InterProcessRPCResponseSchema)) {
 				const callback = this.getCall(response);
