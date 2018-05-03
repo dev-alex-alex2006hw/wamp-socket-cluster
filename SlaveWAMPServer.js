@@ -17,9 +17,7 @@ class SlaveWAMPServer extends WAMPServer {
 	constructor(
 		worker,
 		internalRequestsTimeoutMs = 10e3,
-		configuredCb = () => {},
-		onRPC = null,
-		onEvent = null) {
+		configuredCb = () => {}) {
 		super();
 		this.worker = worker;
 		this.sockets = worker.scServer.clients;
@@ -27,33 +25,33 @@ class SlaveWAMPServer extends WAMPServer {
 		this.endpoints.slaveRpc = {};
 		this.config = {};
 		this.internalRequestsTimeoutMs = internalRequestsTimeoutMs;
-		this.worker.on('masterMessage', (response, timeout, cb) => {
-			if (onRPC && response.rpc) {
-				onRPC(response, cb);
+		this.worker.on('masterMessage', (payload, timeout, cb) => {
+			if (this.onRPC && payload.rpc) {
+				this.onRPC(payload, cb);
 			}
-			else if (onEvent && response.emit) {
-				onEvent(response);
+			else if (this.onEvent && payload.event) {
+				this.onEvent(payload);
 			}
-			else if (schemas.isValid(response, schemas.RPCResponseSchema)) {
-				const socket = this.sockets[response.socketId];
+			else if (schemas.isValid(payload, schemas.RPCResponseSchema)) {
+				const socket = this.sockets[payload.socketId];
 				if (socket) {
-					delete response.socketId;
-					delete response.workerId;
-					response.type = schemas.RPCRequestSchema.id;
-					this.reply(socket, response, response.error, response.data);
+					delete payload.socketId;
+					delete payload.workerId;
+					payload.type = schemas.RPCRequestSchema.id;
+					this.reply(socket, payload, payload.error, payload.data);
 				} else {
 					console.log('Socket that requested RPC call not found anymore');
 				}
-			} else if (schemas.isValid(response, schemas.InterProcessRPCResponseSchema)) {
-				const callback = this.getCall(response);
+			} else if (schemas.isValid(payload, schemas.InterProcessRPCResponseSchema)) {
+				const callback = this.getCall(payload);
 				if (callback) {
-					callback(response.error, response.data);
-					this.deleteCall(response);
+					callback(payload.error, payload.data);
+					this.deleteCall(payload);
 				}
-			} else if (schemas.isValid(response, schemas.MasterConfigResponseSchema)) {
-				this.config = Object.assign({}, this.config, response.config);
-				if (response.registeredEvents) {
-					this.registerEventEndpoints(response.registeredEvents.reduce(
+			} else if (schemas.isValid(payload, schemas.MasterConfigResponseSchema)) {
+				this.config = Object.assign({}, this.config, payload.config);
+				if (payload.registeredEvents) {
+					this.registerEventEndpoints(payload.registeredEvents.reduce(
 						(memo, event) => Object.assign(memo, { [event]: (data) => {
 							this.worker.sendToMaster({
 								data,
@@ -82,6 +80,14 @@ class SlaveWAMPServer extends WAMPServer {
 		request.procedure = request.procedure.replace(/\./g, '');
 		request.socketId = request.socketId.replace(/\./g, '');
 		return request;
+	}
+
+	setOutboundRPCHandler(onRPC) {
+		this.onRPC = onRPC;
+	}
+
+	setOutboundEventHandler(onEvent) {
+		this.onEvent = onEvent;
 	}
 
 	/**

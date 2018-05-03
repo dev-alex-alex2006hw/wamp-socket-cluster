@@ -61,7 +61,7 @@ class WAMPServer {
 			return this.endpoints.event[request.procedure](request.data);
 		}
 		return this.reply(socket, request,
-			`Procedure ${request.procedure} not registered on WAMPServer. 
+			`Procedure ${request.procedure} not registered on WAMPServer.
 			Available commands: ${this.endpoints}`, null);
 	}
 
