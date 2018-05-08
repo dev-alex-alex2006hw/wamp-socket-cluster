@@ -27,12 +27,12 @@ class SlaveWAMPServer extends WAMPServer {
 		this.endpoints.slaveRpc = {};
 		this.config = {};
 		this.internalRequestsTimeoutMs = internalRequestsTimeoutMs;
-		this.worker.on('masterMessage', (response, timeout, cb) => {
+		this.worker.on('masterMessage', (response, cb) => {
 			if (onRPC && response.rpc) {
-				onRPC(response, cb);
+				onRPC(response.peer, response.procedure, response.data, cb);
 			}
 			else if (onEvent && response.emit) {
-				onEvent(response);
+				onEvent(response.peer, response.procedure, response.data);
 			}
 			else if (schemas.isValid(response, schemas.RPCResponseSchema)) {
 				const socket = this.sockets[response.socketId];
